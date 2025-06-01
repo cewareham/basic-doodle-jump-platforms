@@ -37,19 +37,25 @@ const PLATFORM_COUNT = 8;
 //*** ADDED
 const MOVING_PLATFORM_CHANCE = 0.3; // 30% chance for a platform to move
 const MOVING_PLATFORM_SPEED = 2;
+// Add single-use platform constants
+const SINGLE_USE_PLATFORM_CHANCE = 0.2; // 20% chance for a platform to be single-use
+const SINGLE_USE_PLATFORM_COLOR = '#fff'//'#b55'; // reddish
 
 function createPlatform(y) {
-  // Randomly decide if this platform moves
+  // Randomly decide platform type
   const isMoving = Math.random() < MOVING_PLATFORM_CHANCE;
+  const isSingleUse = !isMoving && Math.random() < SINGLE_USE_PLATFORM_CHANCE;
   return {
     x: Math.random() * (WIDTH - PLATFORM_WIDTH),
     y: y,
     w: PLATFORM_WIDTH,
     h: PLATFORM_HEIGHT,
-    color: isMoving ? '#114477' : 'green',
+    color: isSingleUse ? SINGLE_USE_PLATFORM_COLOR : (isMoving ? '#114477' : 'green'),
     moving: isMoving,
     dir: Math.random() < 0.5 ? -1 : 1, // left or right
-    speed: isMoving ? MOVING_PLATFORM_SPEED : 0
+    speed: isMoving ? MOVING_PLATFORM_SPEED : 0,
+    singleUse: isSingleUse,
+    used: false // for single-use platforms
   };
 }
 
@@ -121,6 +127,7 @@ function update() {
   if (player.vy > 0) {
     for (let plat of platforms) {
       if (
+        !plat.used && // skip used single-use platforms
         player.x + player.w > plat.x &&
         player.x < plat.x + plat.w &&
         player.y + player.h > plat.y &&
@@ -131,6 +138,10 @@ function update() {
         // If platform is moving, give player a little horizontal push
         if (plat.moving) {
           player.x += plat.speed * plat.dir;
+        }
+        // If single-use, mark as used so it disappears
+        if (plat.singleUse) {
+          plat.used = true;
         }
       }
     }
@@ -146,9 +157,9 @@ function update() {
 
   // Recycle platforms
   for (let plat of platforms) {
-    if (plat.y > HEIGHT) {
-      plat.x = Math.random() * (WIDTH - PLATFORM_WIDTH);
-      plat.y = 0;
+    if (plat.y > HEIGHT || plat.used) {
+      // When recycling, randomize type again
+      Object.assign(plat, createPlatform(0));
     }
   }
 
@@ -177,6 +188,7 @@ function draw() {
 
   // Draw platforms
   for (let plat of platforms) {
+    if (plat.used) continue; // Don't draw used single-use platforms
     ctx.fillStyle = plat.color;
     ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
   }
