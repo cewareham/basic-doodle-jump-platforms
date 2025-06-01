@@ -40,22 +40,33 @@ const MOVING_PLATFORM_SPEED = 2;
 // Add single-use platform constants
 const SINGLE_USE_PLATFORM_CHANCE = 0.2; // 20% chance for a platform to be single-use
 const SINGLE_USE_PLATFORM_COLOR = '#fff'//'#b55'; // reddish
+// Add breakable platform constants
+const BREAKABLE_PLATFORM_CHANCE = 0.15; // 15% chance for a platform to be breakable
+const BREAKABLE_PLATFORM_COLOR = '#c96'; // brownish
 
 function createPlatform(y) {
   // Randomly decide platform type
   const isMoving = Math.random() < MOVING_PLATFORM_CHANCE;
-  const isSingleUse = !isMoving && Math.random() < SINGLE_USE_PLATFORM_CHANCE;
+  const isBreakable = !isMoving && Math.random() < BREAKABLE_PLATFORM_CHANCE;
+  const isSingleUse = !isMoving && !isBreakable && Math.random() < SINGLE_USE_PLATFORM_CHANCE;
   return {
     x: Math.random() * (WIDTH - PLATFORM_WIDTH),
     y: y,
     w: PLATFORM_WIDTH,
     h: PLATFORM_HEIGHT,
-    color: isSingleUse ? SINGLE_USE_PLATFORM_COLOR : (isMoving ? '#114477' : 'green'),
+    color: isBreakable
+      ? BREAKABLE_PLATFORM_COLOR
+      : (isSingleUse ? SINGLE_USE_PLATFORM_COLOR : (isMoving ? '#114477' : 'green')),
     moving: isMoving,
     dir: Math.random() < 0.5 ? -1 : 1, // left or right
     speed: isMoving ? MOVING_PLATFORM_SPEED : 0,
     singleUse: isSingleUse,
-    used: false // for single-use platforms
+    used: false, // for single-use and breakable platforms
+    breakable: isBreakable,
+    breaking: false, // true when breaking animation starts
+    breakVyL: 0, // left piece vertical speed
+    breakVyR: 0, // right piece vertical speed
+    breakXOffset: 0 // for animating the split
   };
 }
 
@@ -103,7 +114,7 @@ function update() {
   player.vy += player.gravity;
   player.y += player.vy;
 
-  // Move moving platforms
+  // Move moving platforms and animate breakable platforms
   for (let plat of platforms) {
     if (plat.moving) {
       plat.x += plat.speed * plat.dir;
@@ -117,6 +128,17 @@ function update() {
         plat.dir *= -1;
       }
     }
+    // Animate breaking platforms
+    if (plat.breakable && plat.breaking) {
+      plat.breakVyL += 0.5;
+      plat.breakVyR += 0.5;
+      plat.y += Math.max(plat.breakVyL, plat.breakVyR);
+      plat.breakXOffset += 2;
+      // Remove when off screen
+      if (plat.y > HEIGHT) {
+        plat.used = true;
+      }
+    }
   }
 
   // Wrap horizontally
@@ -127,21 +149,31 @@ function update() {
   if (player.vy > 0) {
     for (let plat of platforms) {
       if (
-        !plat.used && // skip used single-use platforms
+        !plat.used && // skip used platforms
+        !plat.breaking && // skip breaking platforms
         player.x + player.w > plat.x &&
         player.x < plat.x + plat.w &&
         player.y + player.h > plat.y &&
         player.y + player.h < plat.y + plat.h &&
         player.vy > 0
       ) {
-        player.vy = player.jump;
-        // If platform is moving, give player a little horizontal push
-        if (plat.moving) {
-          player.x += plat.speed * plat.dir;
-        }
-        // If single-use, mark as used so it disappears
-        if (plat.singleUse) {
-          plat.used = true;
+        // If breakable, start breaking animation and let player fall through (NO JUMP)
+        if (plat.breakable) {
+          plat.breaking = true;
+          plat.breakVyL = 2 + Math.random();
+          plat.breakVyR = 2 + Math.random();
+          plat.breakXOffset = 0;
+          // Do NOT set player.vy = player.jump;
+        } else {
+          player.vy = player.jump;
+          // If platform is moving, give player a little horizontal push
+          if (plat.moving) {
+            player.x += plat.speed * plat.dir;
+          }
+          // If single-use, mark as used so it disappears
+          if (plat.singleUse) {
+            plat.used = true;
+          }
         }
       }
     }
@@ -188,7 +220,30 @@ function draw() {
 
   // Draw platforms
   for (let plat of platforms) {
-    if (plat.used) continue; // Don't draw used single-use platforms
+    if (plat.used) continue; // Don't draw used platforms
+
+    // Draw breaking animation for breakable platforms
+    if (plat.breakable && plat.breaking) {
+      ctx.save();
+      ctx.fillStyle = plat.color;
+      // Left half
+      ctx.fillRect(
+        plat.x - plat.breakXOffset,
+        plat.y,
+        plat.w / 2,
+        plat.h
+      );
+      // Right half
+      ctx.fillRect(
+        plat.x + plat.w / 2 + plat.breakXOffset,
+        plat.y,
+        plat.w / 2,
+        plat.h
+      );
+      ctx.restore();
+      continue;
+    }
+
     ctx.fillStyle = plat.color;
     ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
   }
