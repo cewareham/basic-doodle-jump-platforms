@@ -27,21 +27,29 @@ let player = {
   vx: 0,
   gravity: 0.4,
   jump: -14,
-  color: '#3a3',
+  color: 'orange'//#3a3',
 };
 
 let platforms = [];
 const PLATFORM_WIDTH = 60;
 const PLATFORM_HEIGHT = 12;
 const PLATFORM_COUNT = 8;
+//*** ADDED
+const MOVING_PLATFORM_CHANCE = 0.3; // 30% chance for a platform to move
+const MOVING_PLATFORM_SPEED = 2;
 
 function createPlatform(y) {
+  // Randomly decide if this platform moves
+  const isMoving = Math.random() < MOVING_PLATFORM_CHANCE;
   return {
     x: Math.random() * (WIDTH - PLATFORM_WIDTH),
     y: y,
     w: PLATFORM_WIDTH,
     h: PLATFORM_HEIGHT,
-    color: '#fff'
+    color: isMoving ? '#114477' : 'green',
+    moving: isMoving,
+    dir: Math.random() < 0.5 ? -1 : 1, // left or right
+    speed: isMoving ? MOVING_PLATFORM_SPEED : 0
   };
 }
 
@@ -89,6 +97,22 @@ function update() {
   player.vy += player.gravity;
   player.y += player.vy;
 
+  // Move moving platforms
+  for (let plat of platforms) {
+    if (plat.moving) {
+      plat.x += plat.speed * plat.dir;
+      // Bounce off edges
+      if (plat.x < 0) {
+        plat.x = 0;
+        plat.dir *= -1;
+      }
+      if (plat.x + plat.w > WIDTH) {
+        plat.x = WIDTH - plat.w;
+        plat.dir *= -1;
+      }
+    }
+  }
+
   // Wrap horizontally
   if (player.x < -player.w) player.x = WIDTH;
   if (player.x > WIDTH) player.x = -player.w;
@@ -104,6 +128,10 @@ function update() {
         player.vy > 0
       ) {
         player.vy = player.jump;
+        // If platform is moving, give player a little horizontal push
+        if (plat.moving) {
+          player.x += plat.speed * plat.dir;
+        }
       }
     }
   }
